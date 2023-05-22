@@ -1,0 +1,67 @@
+receivers:
+  fluentforward:
+    endpoint: 0.0.0.0:8006
+  hostmetrics:
+    scrapers:
+      cpu:
+      disk:
+      filesystem:
+      load:
+      memory:
+      network:
+      process:
+      processes:
+      paging:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+extensions:
+  health_check:
+
+exporters:
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+  logging:
+        loglevel: info
+  prometheus:
+    endpoint: prometheus:9090
+    namespace: default
+  elasticsearch/trace:
+    endpoints: [elasticsearch:9200]
+    user: elastic
+    tls:
+      insecure_skip_verify: true
+
+  
+service:
+  extensions: [health_check]
+  pipelines:
+    # traces:
+    #   receivers:
+    #     - otlp
+    #   processors: [batch]
+    #   exporters: 
+    #     - logging
+    #     - jaeger
+    # metrics:
+    #   receivers: 
+    #     - otlp
+    #     - hostmetrics
+    #   processors: [batch]
+    #   exporters: 
+    #     # - prometheus
+    #     - logging
+    logs:
+      receivers: 
+        - fluentforward
+      processors: 
+        - batch
+      exporters: 
+        - logging

@@ -1,0 +1,150 @@
+version: '3'
+networks:
+  internalnetwork:
+    driver: bridge
+    internal: true
+  externalnetwork:
+    driver: bridge
+
+volumes:
+  prometheus_data: {}
+  elasticsearch-data:
+    driver: local
+  kibana-data:
+    driver: local
+
+services:
+  app:
+    build: .
+    container_name: app
+    networks:
+      - internalnetwork
+      - externalnetwork
+    ports:
+      - 3000:3000
+    logging:
+      driver: fluentd
+      options:
+        tag: app
+    depends_on:
+      - fluent-bit
+  
+  jaeger:
+    networks:
+      - internalnetwork
+      - externalnetwork
+    image: jaegertracing/all-in-one:1.35
+    ports:
+      - 6831:6831/udp 
+      - 6832:6832/udp 
+      - 5778:5778 
+      - 16686:16686 
+      - 14250:14250 
+      - 14268:14268 
+      - 14269:14269 
+      - 9411:9411 
+    environment:
+      - COLLECTOR_OTLP_ENABLED=false
+  
+  otel-collector:
+    container_name: otel-collector
+    networks:
+      - internalnetwork
+      - externalnetwork
+    image: otel/opentelemetry-collector-contrib
+    command: [--config=/etc/otel-collector-config.yaml]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - 13133:13133 # health_check extension
+      - 4317:4317 # OTLP gRPC receiver
+      - 4318:4318 # OTLP http receiver
+      - 8006:8006 # fluent forward receiver
+  
+  prometheus:
+    image: prom/prometheus
+    networks:
+      - internalnetwork
+      - externalnetwork
+    restart: always
+    volumes:
+      - ./prometheus:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - 9090:9090
+    links:
+      - cadvisor:cadvisor
+    depends_on:
+      - cadvisor
+  
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - 8080:8080
+    restart: always
+    deploy:
+      mode: global
+
+  fluent-bit:
+    image: fluent/fluent-bit
+    container_name: fluent-bit
+    ports:
+      - "127.0.0.1:24224:24224/udp"
+      - "127.0.0.1:24224:24224/tcp"
+      - 2020:2020
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+    depends_on:
+      - elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.5.0
+    container_name: elasticsearch
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - 9222:9200
+      - 9333:9300
+    networks:
+      - internalnetwork
+      - externalnetwork
+  
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:7.5.0
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9222
+      - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
+    ports:
+      - 5601:5601
+    depends_on:
+      - elasticsearch
+    networks:
+      - internalnetwork
+      - externalnetwork
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+
