@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "@opentelemetry/auto-instrumentations-node": "^0.37.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.39.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.39.1",
+    "@opentelemetry/instrumentation-express": "^0.32.3",
+    "@opentelemetry/instrumentation-http": "^0.39.1",
+    "@opentelemetry/sdk-metrics": "^1.13.0",
+    "@opentelemetry/sdk-node": "^0.39.1",
+    "express": "^4.18.2",
+    "winston": "^3.8.2"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
